@@ -5,6 +5,8 @@ import sqlite3
 import logging
 import asyncio
 import csv
+import psutil
+import gc
 from datetime import datetime, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
@@ -215,7 +217,7 @@ def get_admin_main_menu():
         [InlineKeyboardButton("⚙️ الإعدادات الديناميكية", callback_data="settings_menu")],
         [InlineKeyboardButton("👥 إدارة المشتركين وتصنيفهم", callback_data="manage_users")],
         [InlineKeyboardButton("📊 تقارير الاستخدام حسب المدة", callback_data="reports_menu")],
-        [InlineKeyboardButton("🩺 فحص حالة المنظومة (Health Check)", callback_data="health_check")],
+        [InlineKeyboardButton("🩺 فحص حالة المنظومة والذاكرة (Health Check)", callback_data="health_check")],
         [InlineKeyboardButton("➕ إضافة مشترك جديد", callback_data="add_user_start")],
         [InlineKeyboardButton("📢 إذاعة عامة للمشتركين", callback_data="broadcast_start")]
     ]
@@ -520,7 +522,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.edit_text(f"❌ حدث خطأ أثناء تصدير الملف: {e}", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ رجوع", callback_data="reports_menu")]]))
 
     elif data == "health_check":
-        await query.message.edit_text("🩺 **جاري فحص اتصال الموقع والمنظومة الأساسية...**", parse_mode="Markdown")
+        await query.message.edit_text("🩺 **جاري فحص اتصال الموقع واستهلاك الذاكرة...**", parse_mode="Markdown")
         site_url = get_setting("site_url", DEFAULT_SITE_URL)
         status_result = "❌ تعذر الاتصال بالموقع"
         response_time = 0
@@ -528,7 +530,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         start_t = asyncio.get_event_loop().time()
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
+                browser = await p.chromium.launch(
+                    headless=True,
+                    args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--single-process']
+                )
                 page = await browser.new_page()
                 response = await page.goto(site_url, timeout=20000)
                 if response and response.ok:
@@ -542,11 +547,18 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         end_t = asyncio.get_event_loop().time()
         response_time = round((end_t - start_t), 2)
 
+        # حساب استخدام الذاكرة (RAM) الفعلي
+        process = psutil.Process(os.getpid())
+        ram_mb = process.memory_info().rss / (1024 * 1024)
+        sys_ram = psutil.virtual_memory()
+
         health_text = (
-            f"🩺 **تقرير فحص صحة المنظومة (Health Check):**\n\n"
+            f"🩺 **تقرير فحص صحة المنظومة والذاكرة:**\n\n"
             f"🌐 **الرابط المستهدف:** `{site_url}`\n"
-            f"📌 **الحالة:** {status_result}\n"
-            f"⏱ **زمن الاستجابة:** `{response_time} ثانية`"
+            f"📌 **حالة الموقع:** {status_result}\n"
+            f"⏱ **زمن الاستجابة:** `{response_time} ثانية`\n\n"
+            f"🧠 **استهلاك البوت للذاكرة:** `{ram_mb:.1f} MB`\n"
+            f"📊 **إجمالي رام السيرفر المستهلكة:** `{sys_ram.percent}%`"
         )
         keyboard = [[InlineKeyboardButton("⬅️ رجوع للوحة الأدمن", callback_data="admin_panel")]]
         await query.message.edit_text(health_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="Markdown")
@@ -1008,8 +1020,10 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         finally:
             if os.path.exists(file_path):
                 os.remove(file_path)
+            # 🧹 تنظيف الذاكرة المؤقتة لـ Python وإجبارها على تحرير الـ RAM بعد انتهاء العملية
+            gc.collect()
 
-# ----------------- 6. الأتمتة عبر Playwright -----------------
+# ----------------- 6. الأتمتة عبر Playwright (مع تحسينات الذاكرة) -----------------
 
 async def process_single_file_on_website(file_path: str) -> tuple[str, str]:
     site_url = get_setting("site_url", DEFAULT_SITE_URL)
@@ -1017,7 +1031,16 @@ async def process_single_file_on_website(file_path: str) -> tuple[str, str]:
     site_pass = get_setting("site_password", DEFAULT_PASSWORD)
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        # 🚀 إعدادات Chromium لتحسين استهلاك الذاكرة وتفادي مشاكل Linux /dev/shm
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--single-process'
+            ]
+        )
         page = await browser.new_page()
 
         try:
@@ -1070,7 +1093,16 @@ async def process_batch_file_on_website(file_path: str, download_dir: str) -> st
     downloaded_file_path = None
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        # 🚀 إعدادات Chromium لتحسين استهلاك الذاكرة وتفادي مشاكل Linux /dev/shm
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--single-process'
+            ]
+        )
         context = await browser.new_context(accept_downloads=True)
         page = await context.new_page()
 
@@ -1131,7 +1163,7 @@ class SimpleHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b"Bot is running successfully!")
     def log_message(self, format, *args):
-        pass  # منع طباعة سجلات الـ HTTP المتكررة في الكونسول
+        pass
 
 def run_web_server():
     port = int(os.environ.get("PORT", 10000))
@@ -1142,7 +1174,6 @@ def run_web_server():
 
 def main():
     try:
-        # تشغيل خادم الويب في الخلفية لترضية منصة Render وتجنب مهلة الـ Port
         server_thread = threading.Thread(target=run_web_server, daemon=True)
         server_thread.start()
 
