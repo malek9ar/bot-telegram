@@ -1,0 +1,38 @@
+{
+    "settings": {
+        "site_url": "https://abroad.help.tiandycloud.com/product/#/login?redirect=%2Frecovepwd%2Frecover",
+        "site_username": "ALREYADA",
+        "site_password": "qqqq1111",
+        "admin_whatsapp": "+218917916484"
+    },
+    "users": {
+        "1935856158": {
+            "name": ". .",
+            "expiry": "2099-12-31",
+            "usage_count": 6,
+            "last_used": "2026-09-26 14:25",
+            "status": "active"
+        },
+        "1152204152": {
+            "name": "Fathi Elasekri",
+            "expiry": "2099-12-31",
+            "usage_count": 2,
+            "last_used": "2026-09-24 19:35",
+            "status": "active"
+        },
+        "5648222016": {
+            "name": "abdo alemam",
+            "expiry": "2099-12-31",
+            "usage_count": 1,
+            "last_used": "2026-09-26 13:42",
+            "status": "active"
+        },
+        "8329676336": {
+            "name": "ابو مهاب عبدالله",
+            "expiry": "2099-12-31",
+            "usage_count": 1,
+            "last_used": "2026-09-26 13:58",
+            "status": "active"
+        }
+    }
+}
