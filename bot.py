@@ -6,6 +6,8 @@ import logging
 import asyncio
 import csv
 from datetime import datetime, timedelta
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup, 
     ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
@@ -1121,10 +1123,29 @@ async def process_batch_file_on_website(file_path: str, download_dir: str) -> st
         finally:
             await browser.close()
 
-# ----------------- 7. التشغيل الرئيسي -----------------
+# ----------------- 7. خادم الويب الوهمي لـ Render (Port Binding) -----------------
+
+class SimpleHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running successfully!")
+    def log_message(self, format, *args):
+        pass  # منع طباعة سجلات الـ HTTP المتكررة في الكونسول
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), SimpleHandler)
+    server.serve_forever()
+
+# ----------------- 8. التشغيل الرئيسي -----------------
 
 def main():
     try:
+        # تشغيل خادم الويب في الخلفية لترضية منصة Render وتجنب مهلة الـ Port
+        server_thread = threading.Thread(target=run_web_server, daemon=True)
+        server_thread.start()
+
         app = Application.builder().token(BOT_TOKEN).build()
 
         conv_handler = ConversationHandler(
