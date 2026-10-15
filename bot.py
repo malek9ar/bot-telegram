@@ -1031,7 +1031,6 @@ async def process_single_file_on_website(file_path: str) -> tuple[str, str]:
     site_pass = get_setting("site_password", DEFAULT_PASSWORD)
 
     async with async_playwright() as p:
-        # 🚀 إعدادات Chromium لتحسين استهلاك الذاكرة وتفادي مشاكل Linux /dev/shm
         browser = await p.chromium.launch(
             headless=True,
             args=[
@@ -1093,7 +1092,6 @@ async def process_batch_file_on_website(file_path: str, download_dir: str) -> st
     downloaded_file_path = None
 
     async with async_playwright() as p:
-        # 🚀 إعدادات Chromium لتحسين استهلاك الذاكرة وتفادي مشاكل Linux /dev/shm
         browser = await p.chromium.launch(
             headless=True,
             args=[
@@ -1155,13 +1153,20 @@ async def process_batch_file_on_website(file_path: str, download_dir: str) -> st
         finally:
             await browser.close()
 
-# ----------------- 7. خادم الويب الوهمي لـ Render (Port Binding) -----------------
+# ----------------- 7. خادم الويب الوهمي (محدث لدعم GET و HEAD لـ UptimeRobot) -----------------
 
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
+        self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
         self.wfile.write(b"Bot is running successfully!")
+
+    def do_HEAD(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html; charset=utf-8")
+        self.end_headers()
+
     def log_message(self, format, *args):
         pass
 
